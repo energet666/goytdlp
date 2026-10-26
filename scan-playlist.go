@@ -2,6 +2,7 @@ package goytdlp
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -16,7 +17,9 @@ type Video struct {
 
 func (ytDlp *YtDlp) ScanPlaylist(url string) ([]Video, error) {
 	var videos []Video
-	cmd := exec.Command("yt-dlp", "--dump-json", "--flat-playlist", url)
+	cmd := exec.Command("yt-dlp", "--dump-json", "--flat-playlist", "--config-location", ytDlp.configPath, url)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -34,8 +37,7 @@ func (ytDlp *YtDlp) ScanPlaylist(url string) ([]Video, error) {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			var video Video
-			err = json.Unmarshal(scanner.Bytes(), &video)
-			if err != nil {
+			if err := json.Unmarshal(scanner.Bytes(), &video); err != nil {
 				fmt.Println("ошибка разбора JSON:", err)
 				continue
 			}
@@ -49,7 +51,7 @@ func (ytDlp *YtDlp) ScanPlaylist(url string) ([]Video, error) {
 
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("ошибка выполнения: %v", err)
+		return nil, fmt.Errorf("ошибка выполнения: %v: %s", err, bytes.TrimSpace(stderr.Bytes()))
 	}
 	return videos, nil
 }
